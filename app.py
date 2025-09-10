@@ -1,43 +1,52 @@
 from flask import Flask, request, jsonify
 import openai
-import base64
 import os
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Allow Shopify frontend requests
+CORS(app)  # Allow frontend requests
 
-# Set your OpenAI API Key
-openai.api_key = os.getenv("OPENAI_API_KEY", "your_api_key_here")
+# ✅ API Key environment variable se lo
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
+# ✅ Root route (testing)
+@app.route("/", methods=["GET"])
+def home():
+    return "🚀 AI Mockup Backend is running. Use POST /generate-mockup"
+
+# ✅ Mockup generate route
 @app.route("/generate-mockup", methods=["POST"])
 def generate_mockup():
     try:
+        # Frontend se inputs
         product = request.form.get("product")
         variant = request.form.get("variant")
         logo_file = request.files.get("logo")
 
-        if not logo_file:
-            return jsonify({"error": "No logo uploaded"}), 400
+        if not product or not logo_file:
+            return jsonify({"error": "Product and logo are required"}), 400
 
-        # Save uploaded logo temporarily
-        logo_path = "logo.png"
-        logo_file.save(logo_path)
+        # ✅ Prompt banate hain
+        prompt = f"Create a 3D realistic mockup of a {product} ({variant}) with the uploaded logo placed on it. High quality studio render."
 
-        # Generate mockup image
-        prompt = f"Create a realistic product mockup of a {product} ({variant}) with the uploaded company logo printed on it. High-quality studio lighting."
-
+        # ✅ Call OpenAI Image API
         response = openai.images.generate(
-            model="gpt-image-1",   # DALL·E 3 API
+            model="gpt-image-1",   # DALL·E 3
             prompt=prompt,
-            size="512x512"
+            size="1024x1024"
         )
 
         image_url = response.data[0].url
-        return jsonify({"image_url": image_url})
+
+        return jsonify({
+            "product": product,
+            "variant": variant,
+            "image_url": image_url
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)
