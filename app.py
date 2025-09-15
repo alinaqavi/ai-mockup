@@ -4,7 +4,7 @@ import os
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env
 load_dotenv()
 
 app = Flask(__name__)
@@ -34,7 +34,7 @@ def generate_mockup():
         product_file.save(product_path)
         logo_file.save(logo_path)
 
-        # Define prompt for AI
+        # Prompt for AI
         prompt = "Place the uploaded logo on this product realistically."
 
         # Use images.generate instead of images.edit
@@ -45,11 +45,10 @@ def generate_mockup():
             n=1
         )
 
-        # Clean up temporary files
+        # Remove temporary files
         os.remove(product_path)
         os.remove(logo_path)
 
-        # Extract image URL
         image_url = response.data[0].url
 
         return jsonify({
@@ -58,7 +57,7 @@ def generate_mockup():
         })
 
     except Exception as e:
-        print("Error:", e)  # Terminal me actual error dikhane ke liye
+        print("Error:", e)  # Terminal me actual error
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
