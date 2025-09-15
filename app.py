@@ -3,14 +3,15 @@ from openai import OpenAI
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
+from io import BytesIO
 
-# Load environment variables from .env
+# ✅ Load env
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize OpenAI client
+# ✅ OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.route("/", methods=["GET"])
@@ -20,36 +21,30 @@ def home():
 @app.route("/generate-mockup", methods=["POST"])
 def generate_mockup():
     try:
-        # Get uploaded files
+        # ✅ Files
         product_file = request.files.get("product")
-        logo_file = request.files.get("logo")
+        logo_file = request.files.get("logo")  # optional
         variant = request.form.get("variant", "default")
 
-        if not product_file or not logo_file:
-            return jsonify({"error": "Product image and logo are required"}), 400
+        if not product_file:
+            return jsonify({"error": "Product image required"}), 400
 
-        # Save files temporarily
-        product_path = f"temp_product_{product_file.filename}"
-        logo_path = f"temp_logo_{logo_file.filename}"
-        product_file.save(product_path)
-        logo_file.save(logo_path)
+        # ✅ Prompt banado
+        if logo_file:
+            prompt = "Place the uploaded logo on the product realistically."
+        else:
+            prompt = "Make the product photo look like a professional mockup."
 
-        # Prompt for AI
-        prompt = "Place the uploaded logo on this product realistically."
-
-        # Use images.generate instead of images.edit
-        response = client.images.generate(
+        # ✅ OpenAI call (NO MASK)
+        response = client.images.edit(
             model="gpt-image-1",
+            image=BytesIO(product_file.read()),
             prompt=prompt,
-            size="1024x1024",
-            n=1
+            size="1024x1024"
         )
 
-        # Remove temporary files
-        os.remove(product_path)
-        os.remove(logo_path)
-
-        image_url = response.data[0].url
+        # ✅ Image URL extract
+        image_url = response.data[0].url if response.data else None
 
         return jsonify({
             "variant": variant,
@@ -57,8 +52,8 @@ def generate_mockup():
         })
 
     except Exception as e:
-        print("Error:", e)  # Terminal me actual error
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
