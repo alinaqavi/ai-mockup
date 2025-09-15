@@ -3,6 +3,7 @@ from openai import OpenAI
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
+from io import BytesIO
 
 # ✅ Load environment variables from .env
 load_dotenv()
@@ -21,43 +22,34 @@ def home():
 def generate_mockup():
     try:
         # ✅ Get form data
-        product = request.form.get("product")
-        variant = request.form.get("variant", "default")
+        product_file = request.files.get("product")
         logo_file = request.files.get("logo")
+        variant = request.form.get("variant", "default")
 
-        if not product or not logo_file:
-            return jsonify({"error": "Product and logo are required"}), 400
+        # ✅ Validate files
+        if not product_file or not logo_file:
+            return jsonify({"error": "Product image and logo are required"}), 400
 
-        # ✅ Save uploaded logo temporarily
-        logo_path = f"temp_logo_{logo_file.filename}"
-        logo_file.save(logo_path)
+        # ✅ Read files into BytesIO
+        product_img = BytesIO(product_file.read())
+        logo_img = BytesIO(logo_file.read())
 
-        # ✅ Define product image path (default image for each product)
-        product_image_path = f"products/{product}_{variant}.png"
-        if not os.path.exists(product_image_path):
-            return jsonify({"error": f"Product image not found: {product_image_path}"}), 400
-
-        # ✅ Prompt for placing the logo
-        prompt = f"Place the uploaded logo on the {product} ({variant}) realistically."
+        # ✅ Define prompt
+        prompt = f"Place the uploaded logo on the product realistically."
 
         # ✅ Call OpenAI Images Edit API
-        with open(product_image_path, "rb") as product_img, open(logo_path, "rb") as logo_img:
-            response = client.images.edit(
-                model="gpt-image-1",
-                image=product_img,
-                prompt=prompt,
-                mask=logo_img,   # optional: controls logo placement
-                size="1024x1024"
-            )
+        response = client.images.edit(
+            model="gpt-image-1",
+            image=product_img,
+            prompt=prompt,
+            mask=logo_img,  # optional: controls logo placement
+            size="1024x1024"
+        )
 
         # ✅ Extract image URL
         image_url = response.data[0].url
 
-        # ✅ Clean up temp logo
-        os.remove(logo_path)
-
         return jsonify({
-            "product": product,
             "variant": variant,
             "image_url": image_url
         })
