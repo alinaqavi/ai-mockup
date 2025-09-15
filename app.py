@@ -10,6 +10,7 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+# Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.route("/", methods=["GET"])
@@ -33,30 +34,32 @@ def generate_mockup():
         product_file.save(product_path)
         logo_file.save(logo_path)
 
-        # Prompt for AI to merge logo on product
-        prompt = "Place the uploaded logo on the product realistically."
+        # Define prompt for AI
+        prompt = "Place the uploaded logo on this product realistically."
 
-        # Only pass product image, mask is removed
-        with open(product_path, "rb") as p_img:
-            response = client.images.edit(
-                model="gpt-image-1",
-                image=p_img,
-                prompt=prompt,
-                size="1024x1024"
-            )
+        # Use images.generate instead of images.edit
+        response = client.images.generate(
+            model="gpt-image-1",
+            prompt=prompt,
+            size="1024x1024",
+            n=1
+        )
 
         # Clean up temporary files
         os.remove(product_path)
         os.remove(logo_path)
 
+        # Extract image URL
+        image_url = response.data[0].url
+
         return jsonify({
             "variant": variant,
-            "image_url": response.data[0].url
+            "image_url": image_url
         })
 
     except Exception as e:
+        print("Error:", e)  # Terminal me actual error dikhane ke liye
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
