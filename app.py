@@ -3,15 +3,13 @@ from openai import OpenAI
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
-from io import BytesIO
 
-# ✅ Load environment variables from .env
+# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# ✅ Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.route("/", methods=["GET"])
@@ -21,46 +19,42 @@ def home():
 @app.route("/generate-mockup", methods=["POST"])
 def generate_mockup():
     try:
-        # ✅ Get uploaded files
         product_file = request.files.get("product")
         logo_file = request.files.get("logo")
         variant = request.form.get("variant", "default")
 
-        # ✅ Validate files
         if not product_file or not logo_file:
             return jsonify({"error": "Product image and logo are required"}), 400
 
-        # ✅ Read files into BytesIO
-        product_img = BytesIO(product_file.read())
-        logo_img = BytesIO(logo_file.read())
+        # ✅ Save files temporarily
+        product_path = f"temp_product_{product_file.filename}"
+        logo_path = f"temp_logo_{logo_file.filename}"
+        product_file.save(product_path)
+        logo_file.save(logo_path)
 
-        # ✅ Reset pointer to start
-        product_img.seek(0)
-        logo_img.seek(0)
-
-        # ✅ Define prompt
         prompt = "Place the uploaded logo on the product realistically."
 
-        # ✅ Call OpenAI Images Edit API
-        response = client.images.edit(
-            model="gpt-image-1",
-            image=product_img,
-            prompt=prompt,
-            mask=logo_img,  # optional: controls logo placement
-            size="1024x1024"
-        )
+        # ✅ Open files and pass to OpenAI
+        with open(product_path, "rb") as p_img, open(logo_path, "rb") as l_img:
+            response = client.images.edit(
+                model="gpt-image-1",
+                image=p_img,
+                prompt=prompt,
+                mask=l_img,
+                size="1024x1024"
+            )
 
-        # ✅ Extract image URL
-        image_url = response.data[0].url
+        # ✅ Remove temp files
+        os.remove(product_path)
+        os.remove(logo_path)
 
         return jsonify({
             "variant": variant,
-            "image_url": image_url
+            "image_url": response.data[0].url
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
