@@ -4,6 +4,7 @@ import os
 from flask_cors import CORS
 from dotenv import load_dotenv
 from io import BytesIO
+from werkzeug.datastructures import FileStorage  # ✅ Added
 
 # ✅ Load environment variables from .env
 load_dotenv()
@@ -21,7 +22,7 @@ def home():
 @app.route("/generate-mockup", methods=["POST"])
 def generate_mockup():
     try:
-        # ✅ Get form data
+        # ✅ Get uploaded files
         product_file = request.files.get("product")
         logo_file = request.files.get("logo")
         variant = request.form.get("variant", "default")
@@ -30,12 +31,21 @@ def generate_mockup():
         if not product_file or not logo_file:
             return jsonify({"error": "Product image and logo are required"}), 400
 
-        # ✅ Read files into BytesIO
-        product_img = BytesIO(product_file.read())
-        logo_img = BytesIO(logo_file.read())
+        # ✅ Wrap uploaded files in FileStorage to preserve mimetype
+        product_img = FileStorage(
+            stream=BytesIO(product_file.read()),
+            filename=product_file.filename,
+            content_type=product_file.content_type  # important for OpenAI
+        )
+
+        logo_img = FileStorage(
+            stream=BytesIO(logo_file.read()),
+            filename=logo_file.filename,
+            content_type=logo_file.content_type  # important for OpenAI
+        )
 
         # ✅ Define prompt
-        prompt = f"Place the uploaded logo on the product realistically."
+        prompt = "Place the uploaded logo on the product realistically."
 
         # ✅ Call OpenAI Images Edit API
         response = client.images.edit(
