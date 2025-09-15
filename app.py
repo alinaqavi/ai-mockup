@@ -41,7 +41,7 @@ def generate_mockup():
         response = client.images.generate(
             model="gpt-image-1",
             prompt=prompt,
-            size="512x512",
+            size="1024x1024",
             n=1
         )
 
