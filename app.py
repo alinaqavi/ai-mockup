@@ -19,6 +19,7 @@ def home():
 @app.route("/generate-mockup", methods=["POST"])
 def generate_mockup():
     try:
+        # Get uploaded files
         product_file = request.files.get("product")
         logo_file = request.files.get("logo")
         variant = request.form.get("variant", "default")
@@ -26,25 +27,25 @@ def generate_mockup():
         if not product_file or not logo_file:
             return jsonify({"error": "Product image and logo are required"}), 400
 
-        # ✅ Save files temporarily
+        # Save files temporarily
         product_path = f"temp_product_{product_file.filename}"
         logo_path = f"temp_logo_{logo_file.filename}"
         product_file.save(product_path)
         logo_file.save(logo_path)
 
+        # Prompt for AI to merge logo on product
         prompt = "Place the uploaded logo on the product realistically."
 
-        # ✅ Open files and pass to OpenAI
-        with open(product_path, "rb") as p_img, open(logo_path, "rb") as l_img:
+        # Only pass product image, mask is removed
+        with open(product_path, "rb") as p_img:
             response = client.images.edit(
                 model="gpt-image-1",
                 image=p_img,
                 prompt=prompt,
-                mask=l_img,
                 size="1024x1024"
             )
 
-        # ✅ Remove temp files
+        # Clean up temporary files
         os.remove(product_path)
         os.remove(logo_path)
 
@@ -55,6 +56,7 @@ def generate_mockup():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
