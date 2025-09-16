@@ -3,7 +3,6 @@ from openai import OpenAI
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
-from io import BytesIO
 
 # ✅ Load env
 load_dotenv()
@@ -21,30 +20,39 @@ def home():
 @app.route("/generate-mockup", methods=["POST"])
 def generate_mockup():
     try:
-        # ✅ Files
         product_file = request.files.get("product")
-        logo_file = request.files.get("logo")  # optional
+        logo_file = request.files.get("logo")
         variant = request.form.get("variant", "default")
 
         if not product_file:
             return jsonify({"error": "Product image required"}), 400
 
-        # ✅ Prompt banado
-        if logo_file:
-            prompt = "Place the uploaded logo on the product realistically."
-        else:
-            prompt = "Make the product photo look like a professional mockup."
+        # ✅ Fix mimetype if missing/wrong
+        def fix_mime(file):
+            mimetype = file.mimetype
+            if mimetype == "application/octet-stream":
+                if file.filename.lower().endswith((".jpg", ".jpeg")):
+                    mimetype = "image/jpeg"
+                elif file.filename.lower().endswith(".png"):
+                    mimetype = "image/png"
+                elif file.filename.lower().endswith(".webp"):
+                    mimetype = "image/webp"
+            return mimetype
 
-        # ✅ OpenAI call (NO MASK)
+        product_mime = fix_mime(product_file)
+
+        prompt = "Place the uploaded logo on the product realistically." if logo_file else \
+                 "Make the product photo look like a professional mockup."
+
+        # ✅ Send request to OpenAI
         response = client.images.edit(
             model="gpt-image-1",
-            image=BytesIO(product_file.read()),
+            image=(product_file.filename, product_file, product_mime),
             prompt=prompt,
             size="1024x1024"
         )
 
-        # ✅ Image URL extract
-        image_url = response.data[0].url if response.data else None
+        image_url = response.data[0].url if response and response.data else None
 
         return jsonify({
             "variant": variant,
@@ -52,7 +60,7 @@ def generate_mockup():
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Error code: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
