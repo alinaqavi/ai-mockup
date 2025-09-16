@@ -4,7 +4,7 @@ import os
 from flask_cors import CORS
 from dotenv import load_dotenv
 from PIL import Image
-import io
+import uuid
 
 # ✅ Load environment variables
 load_dotenv()
@@ -20,17 +20,20 @@ def home():
     return "🚀 AI Mockup Backend is running. Use POST /generate-mockup"
 
 # ✅ Resize helper
-def resize_image(file, max_size=800):
-    img = Image.open(file)
+def resize_image(file_path, max_size=800):
+    img = Image.open(file_path)
     img.thumbnail((max_size, max_size))
-    return img
+    img.save(file_path)  # overwrite resized image
+    return file_path
 
 # ✅ Overlay helper
-def overlay_logo(product_img, logo_img, position=(50, 50)):
-    if logo_img.mode != 'RGBA':
-        logo_img = logo_img.convert("RGBA")
+def overlay_logo(product_path, logo_path, position=(50, 50)):
+    product_img = Image.open(product_path).convert("RGBA")
+    logo_img = Image.open(logo_path).convert("RGBA")
     product_img.paste(logo_img, position, logo_img)
-    return product_img
+    # Save overlayed image to same path
+    product_img.save(product_path)
+    return product_path
 
 @app.route("/generate-mockup", methods=["POST"])
 def generate_mockup():
@@ -42,29 +45,35 @@ def generate_mockup():
         if not product_file:
             return jsonify({"error": "Product image required"}), 400
 
-        # ✅ Resize product and logo for memory efficiency
-        product_img = resize_image(product_file)
-        logo_img = resize_image(logo_file) if logo_file else None
+        # ✅ Generate temp file paths
+        product_path = f"temp_{uuid.uuid4().hex}.png"
+        product_file.save(product_path)
 
-        # ✅ Overlay logo if provided
-        if logo_img:
-            product_img = overlay_logo(product_img, logo_img)
+        # Resize product
+        resize_image(product_path)
 
-        # ✅ Convert image to bytes for OpenAI
-        img_bytes = io.BytesIO()
-        product_img.save(img_bytes, format="PNG")
-        img_bytes.seek(0)
+        # Overlay logo if provided
+        if logo_file:
+            logo_path = f"temp_{uuid.uuid4().hex}_logo.png"
+            logo_file.save(logo_path)
+            resize_image(logo_path)
+            overlay_logo(product_path, logo_path)
 
-        prompt = "Make the product look like a professional mockup with logo applied." if logo_file else \
-                 "Make the product look like a professional mockup."
+        # ✅ Send to OpenAI edit API
+        with open(product_path, "rb") as f:
+            prompt = "Make the product look like a professional mockup with logo applied." if logo_file else \
+                     "Make the product look like a professional mockup."
+            response = client.images.edit(
+                model="gpt-image-1",
+                image=(product_path, f, "image/png"),
+                prompt=prompt,
+                size="1024x1024"
+            )
 
-        # ✅ Send request to OpenAI
-        response = client.images.edit(
-            model="gpt-image-1",
-            image=("product.png", img_bytes, "image/png"),
-            prompt=prompt,
-            size="1024x1024"
-        )
+        # Clean up temp files
+        os.remove(product_path)
+        if logo_file:
+            os.remove(logo_path)
 
         image_url = response.data[0].url if response and response.data else None
 
