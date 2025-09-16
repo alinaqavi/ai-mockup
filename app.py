@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify
 from openai import OpenAI
 import os
 from flask_cors import CORS
@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from PIL import Image
 import io
 
-# ✅ Load env
+# ✅ Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
@@ -26,7 +26,7 @@ def resize_image(file, max_size=800):
     return img
 
 # ✅ Overlay helper
-def overlay_logo(product_img, logo_img, position=(0, 0)):
+def overlay_logo(product_img, logo_img, position=(50, 50)):
     if logo_img.mode != 'RGBA':
         logo_img = logo_img.convert("RGBA")
     product_img.paste(logo_img, position, logo_img)
@@ -48,9 +48,9 @@ def generate_mockup():
 
         # ✅ Overlay logo if provided
         if logo_img:
-            product_img = overlay_logo(product_img, logo_img, position=(50, 50))  # Position adjustable
+            product_img = overlay_logo(product_img, logo_img)
 
-        # ✅ Convert image to bytes for sending to OpenAI
+        # ✅ Convert image to bytes for OpenAI
         img_bytes = io.BytesIO()
         product_img.save(img_bytes, format="PNG")
         img_bytes.seek(0)
