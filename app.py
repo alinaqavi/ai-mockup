@@ -1,8 +1,10 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from openai import OpenAI
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
+from PIL import Image
+import io
 
 # ✅ Load env
 load_dotenv()
@@ -17,6 +19,19 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 def home():
     return "🚀 AI Mockup Backend is running. Use POST /generate-mockup"
 
+# ✅ Resize helper
+def resize_image(file, max_size=800):
+    img = Image.open(file)
+    img.thumbnail((max_size, max_size))
+    return img
+
+# ✅ Overlay helper
+def overlay_logo(product_img, logo_img, position=(0, 0)):
+    if logo_img.mode != 'RGBA':
+        logo_img = logo_img.convert("RGBA")
+    product_img.paste(logo_img, position, logo_img)
+    return product_img
+
 @app.route("/generate-mockup", methods=["POST"])
 def generate_mockup():
     try:
@@ -27,27 +42,26 @@ def generate_mockup():
         if not product_file:
             return jsonify({"error": "Product image required"}), 400
 
-        # ✅ Fix mimetype if missing/wrong
-        def fix_mime(file):
-            mimetype = file.mimetype
-            if mimetype == "application/octet-stream":
-                if file.filename.lower().endswith((".jpg", ".jpeg")):
-                    mimetype = "image/jpeg"
-                elif file.filename.lower().endswith(".png"):
-                    mimetype = "image/png"
-                elif file.filename.lower().endswith(".webp"):
-                    mimetype = "image/webp"
-            return mimetype
+        # ✅ Resize product and logo for memory efficiency
+        product_img = resize_image(product_file)
+        logo_img = resize_image(logo_file) if logo_file else None
 
-        product_mime = fix_mime(product_file)
+        # ✅ Overlay logo if provided
+        if logo_img:
+            product_img = overlay_logo(product_img, logo_img, position=(50, 50))  # Position adjustable
 
-        prompt = "Place the uploaded logo on the product realistically." if logo_file else \
-                 "Make the product photo look like a professional mockup."
+        # ✅ Convert image to bytes for sending to OpenAI
+        img_bytes = io.BytesIO()
+        product_img.save(img_bytes, format="PNG")
+        img_bytes.seek(0)
+
+        prompt = "Make the product look like a professional mockup with logo applied." if logo_file else \
+                 "Make the product look like a professional mockup."
 
         # ✅ Send request to OpenAI
         response = client.images.edit(
             model="gpt-image-1",
-            image=(product_file.filename, product_file, product_mime),
+            image=("product.png", img_bytes, "image/png"),
             prompt=prompt,
             size="1024x1024"
         )
@@ -61,7 +75,6 @@ def generate_mockup():
 
     except Exception as e:
         return jsonify({"error": f"Error code: {str(e)}"}), 500
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
