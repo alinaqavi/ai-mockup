@@ -23,7 +23,7 @@ def home():
 def resize_image(file_path, max_size=800):
     img = Image.open(file_path)
     img.thumbnail((max_size, max_size))
-    img.save(file_path)  # overwrite resized image
+    img.save(file_path)
     return file_path
 
 # ✅ Overlay helper
@@ -31,7 +31,6 @@ def overlay_logo(product_path, logo_path, position=(50, 50)):
     product_img = Image.open(product_path).convert("RGBA")
     logo_img = Image.open(logo_path).convert("RGBA")
     product_img.paste(logo_img, position, logo_img)
-    # Save overlayed image to same path
     product_img.save(product_path)
     return product_path
 
@@ -45,37 +44,34 @@ def generate_mockup():
         if not product_file:
             return jsonify({"error": "Product image required"}), 400
 
-        # ✅ Generate temp file paths
+        # ✅ Temp file paths
         product_path = f"temp_{uuid.uuid4().hex}.png"
         product_file.save(product_path)
-
-        # Resize product
         resize_image(product_path)
 
-        # Overlay logo if provided
+        # ✅ Overlay logo locally if provided
         if logo_file:
             logo_path = f"temp_{uuid.uuid4().hex}_logo.png"
             logo_file.save(logo_path)
             resize_image(logo_path)
             overlay_logo(product_path, logo_path)
-
-        # ✅ Send to OpenAI edit API
-        with open(product_path, "rb") as f:
-            prompt = "Make the product look like a professional mockup with logo applied." if logo_file else \
-                     "Make the product look like a professional mockup."
-            response = client.images.edit(
-                model="gpt-image-1",
-                image=(product_path, f, "image/png"),
-                prompt=prompt,
-                size="1024x1024"
-            )
-
-        # Clean up temp files
-        os.remove(product_path)
-        if logo_file:
             os.remove(logo_path)
 
-        image_url = response.data[0].url if response and response.data else None
+        # ❌ OpenAI function call OFF
+        """
+        prompt = "Create a professional product mockup based on this image."
+        with open(product_path, "rb") as f:
+            response = client.images.generate(
+                model="dall-e-3-standard",  # ✅ Standard pricing 0.04$/image
+                prompt=prompt,
+                image=f,  # optional base image for variation
+                size="1024x1024",
+                n=1
+            )
+        """
+
+        # ✅ Fallback: return local file path
+        image_url = f"/{product_path}"
 
         return jsonify({
             "variant": variant,
@@ -83,7 +79,7 @@ def generate_mockup():
         })
 
     except Exception as e:
-        return jsonify({"error": f"Error code: {str(e)}"}), 500
+        return jsonify({"error": f"Error: {str(e)}"}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
